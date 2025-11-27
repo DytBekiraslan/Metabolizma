@@ -1,0 +1,50 @@
+# pubspec.yaml
+
+name: metabolizma_takip
+description: A new Flutter project.
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  # Aim for a recent, stable Dart SDK range
+  sdk: '>=3.2.0 <4.0.0' 
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.2
+  
+  # Core Flutter/Dart libraries, updated for better compatibility
+  provider: ^6.0.5
+  intl: ^0.20.2 # Use a range that works with current Flutter/Dart standards
+  collection: ^1.18.0
+  uuid: ^4.2.1 
+  
+  # Data Storage (Web Uyumlu)
+  shared_preferences: ^2.2.2 
+
+  # File/PDF Generation (Web Uyumlu)
+  fl_chart: ^0.66.2
+  pdf: ^3.10.6
+  file_saver: ^0.2.14 
+  open_filex: ^4.3.2 
+  
+  # Localization
+  flutter_localizations:
+    sdk: flutter
+    
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/NotoSans-Regular.ttf # PDF için gerekli
+    - assets/persentil_data/ # CSV persentil verileri
