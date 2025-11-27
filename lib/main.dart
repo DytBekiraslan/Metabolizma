@@ -5,13 +5,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 // import 'package:path_provider/path_provider.dart'; // KALDIRILDI
 // import 'dart:io'; // KALDIRILDI
 
-import 'models/models.dart'; 
 import 'services/auth_service.dart';
 import 'services/patient_service.dart'; 
 // import 'screens/login_screen.dart'; // DEVRE DIŞI - Hızlı test için
 // Diğer ekran importları aynı kalır...
 import 'screens/patient_list_screen.dart';
-import 'screens/metabolizma_screen.dart'; 
 import 'viewmodels/metabolizma_viewmodel.dart'; 
 import 'services/persentil_service.dart'; // YENİ EKLENDİ
 

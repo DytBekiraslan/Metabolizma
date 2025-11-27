@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart'; // <<< Bu satırın temiz olduğundan emin olun
 import '../models/models.dart';
 import '../services/auth_service.dart';
-import 'metabolizma_screen.dart'; 
 import 'register_screen.dart'; 
 import 'patient_list_screen.dart'; 
 

@@ -240,8 +240,8 @@ class FoodRowState {
   double initialPhe = 0.0;
 
   void dispose() {
-    nameController.dispose();
     amountController.dispose();
+    nameController.dispose();
     energyController.dispose();
     proteinController.dispose();
     pheController.dispose();

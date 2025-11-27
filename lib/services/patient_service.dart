@@ -2,8 +2,6 @@
 // import 'dart:io'; // KALDIRILDI
 import 'dart:convert'; 
 // import 'package:path_provider/path_provider.dart'; // KALDIRILDI
-import 'package:collection/collection.dart'; 
-import 'package:intl/intl.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; // YENİ EKLENDİ
 import 'package:uuid/uuid.dart';
 import '../models/models.dart';

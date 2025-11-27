@@ -103,14 +103,14 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
       final pheLevel = double.tryParse(pheLevelText.replaceAll(',', '.')) ?? 0.0;
       final visitDate = viewModel.visitDate;
       
-      if (pheLevel > 0 && visitDate != null && patientName.isNotEmpty) {
+      if (visitDate != null && patientName.isNotEmpty) {
         final newPheRecord = PhenylalanineRecord(
             patientId: savedRecord.recordId!, // Hasta kaydının ID'sini kullan
             patientName: patientName,
             visitDate: visitDate, 
             pheLevel: pheLevel
         );
-       await patientService.savePheRecord(patientName!, newPheRecord);
+       await patientService.savePheRecord(patientName, newPheRecord);
     }
       // YENİ EKLENEN KISIM SONU
 
@@ -119,14 +119,14 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
       final tyrosineLevel = double.tryParse(tyrosineLevelText.replaceAll(',', '.')) ?? 0.0;
       final tyrosineVisitDate = viewModel.tyrosineVisitDate;
       
-      if (tyrosineLevel > 0 && tyrosineVisitDate != null && patientName.isNotEmpty) {
+      if (tyrosineVisitDate != null && patientName.isNotEmpty) {
         final newTyrosineRecord = TyrosineRecord(
             patientId: savedRecord.recordId!, // Hasta kaydının ID'sini kullan
             patientName: patientName,
             visitDate: tyrosineVisitDate, 
             tyrosineLevel: tyrosineLevel
         );
-       await patientService.saveTyrosineRecord(patientName!, newTyrosineRecord);
+       await patientService.saveTyrosineRecord(patientName, newTyrosineRecord);
     }
       // TİROZİN KISIM SONU
       
@@ -196,24 +196,6 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
     }
 }
 
-  // Yeni metot: PDF'i kayıttan açar. (Web'de bu sadece indirme/uyarı olur)
-  void _openPdf(String? path, dynamic OpenResultType) async {
-    // Web'de OpenFilex doğrudan PDF'i açmayacağı için bilgilendirme yapıyoruz.
-    if (path != null && path.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Web platformunda PDF indirme sonrası açmak için kaydettiğiniz konumu kontrol edin. Kayıt yolu bilgisi: $path'),
-          backgroundColor: Colors.blue,
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF yolu bulunamadı.'), backgroundColor: Colors.orange),
-      );
-    }
-  }
-
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +247,7 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // SOL SÜTUN: Ad Soyad, Boy, Doğum Tarihi, FAF
+                // SOL SÜTUN: Ad Soyad, Boy, Doğum Tarihi, FAF, Prematüre
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,37 +267,24 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                       
                       _buildTextField(
                           viewModel.fafController, 
-                          'Fiziksel Aktivite Faktörü (0.1-2.0)', 
+                          'Fiziksel Aktivite Faktörü (1.0-2.0)', 
                           inputType: TextInputType.number,
                       ),
+                      
+                      // Prematüre checkbox
+                      _buildCheckbox(context, "Prematüre", viewModel.isPremature, viewModel.setIsPremature),
                     ],
                   ),
                 ),
                 
                 const SizedBox(width: 20),
                 
-                // SAĞ SÜTUN: Cinsiyet, Ağırlık, Vizit Tarihi, BKİ
+                // SAĞ SÜTUN: Cinsiyet, Ağırlık, Vizit Tarihi, BKİ, Gebe (kadınsa)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Cinsiyet + Prematüre/Gebe
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: _buildGenderDropdown(context, viewModel)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              children: [
-                                _buildCheckbox(context, "Prematüre", viewModel.isPremature, viewModel.setIsPremature),
-                                if (viewModel.selectedGender == 'Kadın')
-                                  _buildCheckbox(context, "Gebe", viewModel.isPregnant, viewModel.setIsPregnant),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                      _buildGenderDropdown(context, viewModel),
                       
                       _buildTextField(viewModel.weightController, 'Ağırlık (kg)', inputType: TextInputType.number),
                       
@@ -331,6 +300,10 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                         'BKİ',
                         tooltipMessage: viewModel.bmiTooltipString,
                       ),
+                      
+                      // Gebe checkbox (sadece kadın seçildiğinde)
+                      if (viewModel.selectedGender == 'Kadın')
+                        _buildCheckbox(context, "Gebe", viewModel.isPregnant, viewModel.setIsPregnant),
                     ],
                   ),
                 ),
@@ -353,11 +326,58 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  // FA Vizit Tarihi
-                  child: Tooltip(
-                    message: 'FA Vizit Tarihini Girin',
-                    waitDuration: const Duration(milliseconds: 300),
-                    child: _buildVisitDatePickerField(context, viewModel),
+                  // FA Tahlil Sonuç Tarihi
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6.0),
+                    child: TextField(
+                      controller: viewModel.visitDateController,
+                      keyboardType: TextInputType.datetime,
+                      onChanged: (value) {
+                        DateTime? parsedDate;
+                        try {
+                          if (value.length == 10) {
+                            parsedDate = DateFormat('dd.MM.yyyy').parseStrict(value);
+                          }
+                        } catch (_) {
+                        }
+                        if (viewModel.visitDate != parsedDate) {
+                          viewModel.setVisitDate(parsedDate);
+                        }
+                      },
+                      style: const TextStyle(fontSize: 14.0),
+                      inputFormatters: [_DateTextFormatter()],
+                      readOnly: false,
+                      decoration: InputDecoration(
+                        labelText: 'FA Tahlil Sonuç Tarihi (GG.AA.YYYY)',
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue.shade300, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue.shade300, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () => viewModel.setVisitDate(null),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Tarihi Temizle',
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -453,10 +473,57 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Tooltip(
-                    message: 'Vizit Tarihini Girin',
-                    waitDuration: const Duration(milliseconds: 300),
-                    child: _buildTyrosineVisitDatePickerField(context, viewModel),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6.0),
+                    child: TextField(
+                      controller: viewModel.tyrosineVisitDateController,
+                      keyboardType: TextInputType.datetime,
+                      onChanged: (value) {
+                        DateTime? parsedDate;
+                        try {
+                          if (value.length == 10) {
+                            parsedDate = DateFormat('dd.MM.yyyy').parseStrict(value);
+                          }
+                        } catch (_) {
+                        }
+                        if (viewModel.tyrosineVisitDate != parsedDate) {
+                          viewModel.setTyrosineVisitDate(parsedDate);
+                        }
+                      },
+                      style: const TextStyle(fontSize: 14.0),
+                      inputFormatters: [_DateTextFormatter()],
+                      readOnly: false,
+                      decoration: InputDecoration(
+                        labelText: 'Tirozin Tahlil Sonuç Tarihi (GG.AA.YYYY)',
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue.shade300, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue.shade300, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () => viewModel.setTyrosineVisitDate(null),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Tarihi Temizle',
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -663,9 +730,9 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
               ),
             ),
 
-            // --- Hesaplama Ağırlığı Kaynağı Seçimi ---
+            // --- Hesaplamalar için Ağırlık Seç ---
             const Divider(height: 30),
-            _buildSectionTitle(context, 'Hesaplama Ağırlığı Kaynağı Seçimi'),
+            _buildSectionTitle(context, 'Hesaplamalar için Ağırlık Seç'),
             
             _buildWeightSourceCheckboxes(context, viewModel),
             
@@ -711,13 +778,43 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Hesaplanan Gereksinimler:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal)),
+                      const Text('Enerji Gereksinimi:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal)),
+                      const SizedBox(height: 6),
+                      
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.blue.shade300, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: viewModel.doctorEnergyCheckbox,
+                              onChanged: (value) {
+                                setState(() {
+                                  viewModel.doctorEnergyCheckbox = value ?? false;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildTextField(
+                                viewModel.doctorEnergyController,
+                                'Enerji (Doktor/Dyt. Hedefi)',
+                                inputType: TextInputType.number,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       
                       _buildEnergyRequirementRow(
                           context, 
                           viewModel,
                           viewModel.energyReqController, 
-                          'Enerji (FKÜ Ref)', 
+                          'Enerji (PKU Referans Tablosu)', 
                           viewModel.enerjiReqTooltipString,
                           EnergySource.fku
                       ),
@@ -741,39 +838,38 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                         ),
                       
                       const SizedBox(height: 10),
-                      // Hesaplanan Protein ve FA
-                      Row(children: [ 
-                        Expanded(child: _buildDisplayField( viewModel.proteinReqController, 'Protein (g/kg)', tooltipMessage: viewModel.proteinReqTooltipString )), 
-                        const SizedBox(width: 10), 
-                        Expanded(child: _buildDisplayField( viewModel.pheReqController, 'Fenilalanin (mg)', tooltipMessage: viewModel.pheReqTooltipString )), 
-                      ],),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(width: 20),
-
-                // SAĞ SÜTUN: DOKTOR ORDER'I (Manuel Giriş)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Doktor Order Hedefleri :', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal)),
-                      
-                      // Protein Girişi (Doktor Order)
-                      const SizedBox(height: 8),
-                      _buildTextField(
-                          viewModel.doctorProteinController, 
-                          'Protein Hedefi (g)', 
-                          inputType: TextInputType.number,
-                      ),
-                      
-                      // FA Girişi (Doktor Order)
+                      const Text('Protein Gereksinimi:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal)),
                       const SizedBox(height: 6),
                       _buildTextField(
-                          viewModel.doctorPheController, 
-                          'Fenilalanin Hedefi (mg)', 
-                          inputType: TextInputType.number,
+                        viewModel.doctorProteinController,
+                        'Protein (Doktor/Dyt Hedefi)',
+                        inputType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 8),
+                      // Hesaplanan Protein
+                      _buildDisplayField( 
+                        viewModel.proteinReqController, 
+                        'Protein (g/kg)', 
+                        tooltipMessage: viewModel.proteinReqTooltipString 
+                      ),
+                      
+                      const SizedBox(height: 10),
+                      const Text('Fenilalanin Gereksinimi:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal)),
+                      const SizedBox(height: 6),
+                      _buildTextField(
+                        viewModel.doctorPheController,
+                        'Fenilalanin (Doktor/Dyt Hedefi)',
+                        inputType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 8),
+                      // Fenilalanin (sola yaslı)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: _buildDisplayField( 
+                          viewModel.pheReqController, 
+                          'Fenilalanin (mg):', 
+                          tooltipMessage: viewModel.pheReqTooltipString 
+                        ),
                       ),
                     ],
                   ),
@@ -1068,7 +1164,18 @@ Widget _buildVisitDatePickerField(BuildContext context, MetabolizmaViewModel vie
           readOnly: false, 
           decoration: InputDecoration(
             labelText: 'Vizit Tarihi (GG.AA.YYYY)',
-            border: const OutlineInputBorder(),
+            border: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.blue.shade300, width: 2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.blue.shade300, width: 2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+              borderRadius: BorderRadius.circular(8),
+            ),
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             suffixIcon: Row(
@@ -1082,15 +1189,6 @@ Widget _buildVisitDatePickerField(BuildContext context, MetabolizmaViewModel vie
                   constraints: const BoxConstraints(),
                   tooltip: 'Tarihi Temizle',
                 ),
-                const SizedBox(width: 4),
-                // Takvim açma butonu
-                IconButton(
-                  icon: const Icon(Icons.calendar_month, size: 20),
-                  onPressed: () => _showVisitDatePickerDialog(context, viewModel),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Takvimi Aç',
-                ),
                 const SizedBox(width: 8),
               ],
             ),
@@ -1100,126 +1198,6 @@ Widget _buildVisitDatePickerField(BuildContext context, MetabolizmaViewModel vie
   }
 
 // YENİ METOT: Vizit tarihi seçici diyalogunu açmak için
-  void _showVisitDatePickerDialog(BuildContext context, MetabolizmaViewModel viewModel) async {
-      final DateTime? pickedDate = await showDatePicker(
-              context: context,
-              initialDate: viewModel.visitDate ?? DateTime.now(),
-              firstDate: DateTime(1900),
-              lastDate: DateTime.now(),
-              locale: const Locale('tr', 'TR'), 
-              builder: (context, child) {
-                  return Theme(
-                      data: Theme.of(context).copyWith(
-                          colorScheme: ColorScheme.light(
-                              primary: Theme.of(context).primaryColor, 
-                              onPrimary: Colors.white, 
-                              onSurface: Colors.black, 
-                          ),
-                          textButtonTheme: TextButtonThemeData(
-                              style: TextButton.styleFrom(
-                                  foregroundColor: Theme.of(context).primaryColor, 
-                              ),
-                          ),
-                      ),
-                      child: child!,
-                  );
-              },
-            );
-            if (pickedDate != null) {
-              viewModel.setVisitDate(pickedDate);
-            }
-  }
-
-// YENİ METOT: Tirozin Vizit Tarihi Seçici Widget'ı
-Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewModel viewModel) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6.0),
-        child: TextField(
-          controller: viewModel.tyrosineVisitDateController,
-          keyboardType: TextInputType.datetime,
-          onChanged: (value) {
-            DateTime? parsedDate;
-            try {
-                if (value.length == 10) { 
-                    parsedDate = DateFormat('dd.MM.yyyy').parseStrict(value);
-                }
-            } catch (_) {
-            }
-            if (viewModel.tyrosineVisitDate != parsedDate) {
-                viewModel.setTyrosineVisitDate(parsedDate); 
-            }
-          },
-          style: const TextStyle(
-            fontSize: 14.0, 
-          ),
-          inputFormatters: [
-            _DateTextFormatter(), 
-          ],
-          readOnly: false, 
-          decoration: InputDecoration(
-            labelText: 'Vizit Tarihi (GG.AA.YYYY)',
-            border: const OutlineInputBorder(),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Temizleme butonu
-                IconButton(
-                  icon: const Icon(Icons.clear, size: 20),
-                  onPressed: () => viewModel.setTyrosineVisitDate(null),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Tarihi Temizle',
-                ),
-                const SizedBox(width: 4),
-                // Takvim açma butonu
-                IconButton(
-                  icon: const Icon(Icons.calendar_month, size: 20),
-                  onPressed: () => _showTyrosineVisitDatePickerDialog(context, viewModel),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Takvimi Aç',
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
-          ),
-        ),
-      );
-  }
-
-// YENİ METOT: Tirozin vizit tarihi seçici diyalogunu açmak için
-  void _showTyrosineVisitDatePickerDialog(BuildContext context, MetabolizmaViewModel viewModel) async {
-      final DateTime? pickedDate = await showDatePicker(
-              context: context,
-              initialDate: viewModel.tyrosineVisitDate ?? DateTime.now(),
-              firstDate: DateTime(1900),
-              lastDate: DateTime.now(),
-              locale: const Locale('tr', 'TR'), 
-              builder: (context, child) {
-                  return Theme(
-                      data: Theme.of(context).copyWith(
-                          colorScheme: ColorScheme.light(
-                              primary: Theme.of(context).primaryColor, 
-                              onPrimary: Colors.white, 
-                              onSurface: Colors.black, 
-                          ),
-                          textButtonTheme: TextButtonThemeData(
-                              style: TextButton.styleFrom(
-                                  foregroundColor: Theme.of(context).primaryColor, 
-                              ),
-                          ),
-                      ),
-                      child: child!,
-                  );
-              },
-            );
-            if (pickedDate != null) {
-              viewModel.setTyrosineVisitDate(pickedDate);
-            }
-  }
-
 
   Widget _buildSubHeader(BuildContext context, String title) { 
     if (title == '-') return const SizedBox.shrink();
@@ -1269,7 +1247,7 @@ Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewM
                     children: [ 
                       _buildDisplayBox(context, 'BMH Hesabı:', viewModel.bmhCalculationString), 
                       _buildDisplayBox(context, 'BKİ Hesabı:', viewModel.bmiCalculationString), 
-                      _buildDisplayBox(context, 'Enerji (FKÜ Ref) Hesabı:', viewModel.enerjiReqCalculationString), 
+                      _buildDisplayBox(context, 'Enerji (PKU Referans Tablosu) Hesabı:', viewModel.enerjiReqCalculationString), 
                       if (showEnerji2) _buildDisplayBox(context, 'Enerji (Pratik) Hesabı:', viewModel.enerjiReq2CalculationString),
                       if (showEnerji3) _buildDisplayBox(context, 'Enerji (BMH*FAF+BGE) Hesabı:', viewModel.enerjiReq3CalculationString), 
                       _buildDisplayBox(context, 'Protein Ger. Hesabı:', viewModel.proteinReqCalculationString), 
@@ -1289,6 +1267,7 @@ Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewM
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                       const Text('PKU Referans Tablosu (Filtrelenmiş)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), 
                         _buildFilteredFKUReferenceTable(context, viewModel),
                         const SizedBox(height: 15),
 
@@ -1380,6 +1359,35 @@ Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewM
             const Text(
               '2 yaştan büyükler için hesaplanır',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // WHO Ağırlık için özel mesaj (10 yaşından büyükler için)
+    if (value.contains('10 yaşından büyük çocuklar')) {
+      return Container(
+        padding: const EdgeInsets.all(12.0),
+        decoration: BoxDecoration(
+          color: borderColor.withOpacity(0.05),
+          border: Border.all(color: borderColor, width: 2),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black87),
+              textAlign: TextAlign.center,
+            ),
+            const Divider(height: 16),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1941,34 +1949,41 @@ Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewM
   ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0), 
-      child: Row(
-        children: [
-          // Checkbox
-          SizedBox(
-            width: 24,
-            height: 52, 
-            child: Center(
-              child: Checkbox(
-                value: viewModel.selectedEnergySources[source] ?? false,
-                onChanged: (newValue) {
-                  viewModel.setSelectedEnergySource(source, newValue);
-                },
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.blue.shade300, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            // Checkbox
+            SizedBox(
+              width: 24,
+              height: 52, 
+              child: Center(
+                child: Checkbox(
+                  value: viewModel.selectedEnergySources[source] ?? false,
+                  onChanged: (newValue) {
+                    viewModel.setSelectedEnergySource(source, newValue);
+                  },
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          // Display Field
-          Expanded(
-            child: _buildDisplayField(
-              controller, 
-              label, 
-              readOnly: true, 
-              isDense: false, 
-              tooltipMessage: tooltipMessage
+            const SizedBox(width: 8),
+            // Display Field
+            Expanded(
+              child: _buildDisplayField(
+                controller, 
+                label, 
+                readOnly: true, 
+                isDense: false, 
+                tooltipMessage: tooltipMessage
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2089,48 +2104,72 @@ Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewM
       
       final currentSource = viewModel.selectedWeightSource;
       
-      return Column(
+      return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-              // YENİ EKLENEN VEYA GÜNCELLENEN CHECKBOX
-              _buildCheckboxTile(
-                  context, 
-                  "Kendi Ağırlığını Kullan ", 
-                  currentSource == WeightSource.current, 
-                  (newValue) => handleCheckboxChange(WeightSource.current, newValue)
+              // SOL SÜTUN
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCheckboxTile(
+                        context, 
+                        "Kendi Ağırlığını Kullan", 
+                        currentSource == WeightSource.current, 
+                        (newValue) => handleCheckboxChange(WeightSource.current, newValue)
+                    ),
+                    const SizedBox(height: 10),
+                    _buildCheckboxTile(
+                        context, 
+                        "WHO Persentili", 
+                        currentSource == WeightSource.whoPercentile, 
+                        (newValue) => handleCheckboxChange(WeightSource.whoPercentile, newValue)
+                    ),
+                  ],
+                ),
               ),
-              _buildCheckboxTile(
-                  context, 
-                  "Diyetisyen Tarafından Girilen Ağırlığı Kullan", 
-                  currentSource == WeightSource.manual, 
-                  (newValue) => handleCheckboxChange(WeightSource.manual, newValue)
-              ),
-              _buildCheckboxTile(
-                  context, 
-                  "WHO (Dünya Sağlık Örgütü) Persentilinden Ağırlık Seç", 
-                  currentSource == WeightSource.whoPercentile, 
-                  (newValue) => handleCheckboxChange(WeightSource.whoPercentile, newValue)
-              ),
-              _buildCheckboxTile(
-                  context, 
-                  "Neyzi ve Ark. (Türkiye) Persentilinden Ağırlık Seç", 
-                  currentSource == WeightSource.neyziPercentile, 
-                  (newValue) => handleCheckboxChange(WeightSource.neyziPercentile, newValue)
+              const SizedBox(width: 15),
+              // SAĞ SÜTUN
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCheckboxTile(
+                        context, 
+                        "Diyetisyen Ağırlığını Kullan", 
+                        currentSource == WeightSource.manual, 
+                        (newValue) => handleCheckboxChange(WeightSource.manual, newValue)
+                    ),
+                    const SizedBox(height: 10),
+                    _buildCheckboxTile(
+                        context, 
+                        "Neyzi Persentili", 
+                        currentSource == WeightSource.neyziPercentile, 
+                        (newValue) => handleCheckboxChange(WeightSource.neyziPercentile, newValue)
+                    ),
+                  ],
+                ),
               ),
           ],
       );
   }
 
   Widget _buildCheckboxTile(BuildContext context, String title, bool value, void Function(bool?) onChanged) { 
-     return CheckboxListTile( 
-       title: Text(title, style: const TextStyle(fontSize: 14)), 
-       value: value, 
-       onChanged: onChanged, 
-       controlAffinity: ListTileControlAffinity.leading, 
-       contentPadding: EdgeInsets.zero, 
-       dense: true, 
-       visualDensity: VisualDensity.compact, 
-     ); 
+     return Container(
+       decoration: BoxDecoration(
+         border: Border.all(color: Colors.blue.shade300, width: 2),
+         borderRadius: BorderRadius.circular(8),
+       ),
+       child: CheckboxListTile( 
+         title: Text(title, style: const TextStyle(fontSize: 14)), 
+         value: value, 
+         onChanged: onChanged, 
+         controlAffinity: ListTileControlAffinity.leading, 
+         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+         dense: true, 
+         visualDensity: VisualDensity.compact, 
+       ),
+     );
   }
 
   // YENİ WIDGET: FKÜ Referans Tablosunu Filtreleyerek Gösterir (2 üst, 2 alt)
@@ -2140,8 +2179,7 @@ Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewM
     final highlightedCellStyle = Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.red.shade700, fontSize: 10); 
     
     // Yaş hesaplaması ViewModel içinden geliyor
-    final (_, ageInMonths, _, _) = _calculateAge(viewModel.dateOfBirth);
-    final ageInYears = ageInMonths ~/ 12;
+    final (_, _, _, _) = _calculateAge(viewModel.dateOfBirth);
 
     final int highlightedIndex = viewModel.highlightedReferenceRowIndex;
     final allRows = viewModel.fkuReferenceRequirements;
@@ -2152,15 +2190,6 @@ Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewM
     final filteredRows = highlightedIndex != -1 
         ? allRows.sublist(start, end + 1)
         : allRows; 
-
-    final columnWidths = {
-      0: const FixedColumnWidth(100),  
-      1: const FixedColumnWidth(80), 
-      2: const FixedColumnWidth(80), 
-      3: const FixedColumnWidth(75), 
-      4: const FixedColumnWidth(100), 
-      5: const FixedColumnWidth(90), 
-    };
     
     return SingleChildScrollView( 
       scrollDirection: Axis.horizontal, 
@@ -2579,15 +2608,21 @@ Widget _buildTyrosineVisitDatePickerField(BuildContext context, MetabolizmaViewM
   }
    
   Widget _buildCheckbox(BuildContext context, String title, bool value, void Function(bool?) onChanged) { 
-     return CheckboxListTile( 
-       title: Text(title), 
-       value: value, 
-       onChanged: onChanged, 
-       controlAffinity: ListTileControlAffinity.leading, 
-       contentPadding: EdgeInsets.zero, 
-       dense: true, 
-       visualDensity: VisualDensity.compact, 
-     ); 
+     return Container(
+       decoration: BoxDecoration(
+         border: Border.all(color: Colors.blue.shade300, width: 2),
+         borderRadius: BorderRadius.circular(8),
+       ),
+       child: CheckboxListTile( 
+         title: Text(title), 
+         value: value, 
+         onChanged: onChanged, 
+         controlAffinity: ListTileControlAffinity.leading, 
+         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+         dense: true, 
+         visualDensity: VisualDensity.compact, 
+       ),
+     );
   }
 
   // YENİ: Persentil Değeri Dropdown'ı
@@ -2734,7 +2769,7 @@ Widget _buildPercentageBar(BuildContext context, CalculatedPercentage data, {req
     final formKey = GlobalKey<FormState>(); 
     final CustomFood? existingFood = (editIndex != null && editIndex < viewModel.customFoods.length) ? viewModel.customFoods[editIndex] : null; 
     final bool isEditing = existingFood != null; 
-    final bool canEditName = !isEditing || !existingFood!.isDefault; 
+    final bool canEditName = !isEditing || !existingFood.isDefault; 
     final nameController = TextEditingController(text: existingFood?.name ?? ""); 
     final proteinController = TextEditingController(text: existingFood != null ? _formatDouble(existingFood.protein) : ""); 
     final faController = TextEditingController(text: existingFood != null ? _formatDouble(existingFood.fa) : ""); 
@@ -2967,7 +3002,7 @@ Widget _buildPercentageBar(BuildContext context, CalculatedPercentage data, {req
             ), 
           ); 
         }, 
-        onWillAcceptWithDetails: (details) => details.data is DraggableInputRowData, 
+        onWillAcceptWithDetails: (details) => true,
         onAcceptWithDetails: (details) { 
           viewModel.assignFoodToMeal( 
             context: context, 
@@ -3019,7 +3054,7 @@ Widget _buildPercentageBar(BuildContext context, CalculatedPercentage data, {req
             ), 
           ); 
         }, 
-        onWillAcceptWithDetails: (details) => details.data is DraggableInputRowData, 
+        onWillAcceptWithDetails: (details) => true,
         onAcceptWithDetails: (details) { 
           viewModel.assignFoodToCustomMeal( 
             context: context, 
@@ -3141,14 +3176,6 @@ class _DateTextFormatter extends TextInputFormatter {
     
     // Sadece sayıları al
     final cleanText = text.replaceAll(RegExp(r'[^\d]'), ''); 
-    
-    // İmleç pozisyonu, eski metin ve yeni temiz metnin uzunluğuna göre ayarlanır
-    int cursorPosition = newValue.selection.end;
-    
-    // Kaç tane nokta ekleneceğini say
-    int dotCount = 0;
-    if (cleanText.length > 2) dotCount++;
-    if (cleanText.length > 4) dotCount++;
     
     // Yeni metni oluştur
     for (int i = 0; i < cleanText.length; i++) {

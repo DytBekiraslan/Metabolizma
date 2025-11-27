@@ -11,7 +11,10 @@ import '../services/patient_service.dart';
 class FaGraphScreen extends StatefulWidget {
   final PatientRecord patientRecord;
 
-  const FaGraphScreen({super.key, required this.patientRecord});
+  const FaGraphScreen({
+    super.key, 
+    required this.patientRecord,
+  });
 
   @override
   State<FaGraphScreen> createState() => _FaGraphScreenState();
@@ -336,56 +339,207 @@ class _FaGraphScreenState extends State<FaGraphScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Kan Fenilalanin Düzeyi Vizit Verileri (Düzenlemek İçin Tıklayın)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const Text('Kan Fenilalanin Düzeyi/ Sonuç Tarihi  (Düzenlemek İçin Tıklayın)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         const SizedBox(height: 8),
-        DataTable(
-          columnSpacing: 20,
-          horizontalMargin: 12,
-          headingRowColor: MaterialStateProperty.all(Colors.teal.shade50),
-          columns: const [
-            DataColumn(label: Text('Sıra', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Vizit Tarihi', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Kan Fenilalanin Düzeyi (mg/dL)', style: TextStyle(fontWeight: FontWeight.bold))),
-          ],
-          rows: records.asMap().entries.map((entry) {
-            final index = entry.key;
-            final record = entry.value;
-            return DataRow(
-              cells: [
-                DataCell(Text((index + 1).toString())),
-                DataCell(
-                  GestureDetector(
-                    onTap: () => _editRecord(record, index, records),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.blue.shade200),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columnSpacing: 20,
+            horizontalMargin: 12,
+            headingRowColor: MaterialStateProperty.all(Colors.teal.shade50),
+            columns: const [
+              DataColumn(label: Text('Sıra', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Sonuç Tarihi', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('Kan Fenilalanin Düzeyi (mg/dL)', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('İşlem', style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: records.asMap().entries.map((entry) {
+              final index = entry.key;
+              final record = entry.value;
+              return DataRow(
+                cells: [
+                  DataCell(Text((index + 1).toString())),
+                  DataCell(
+                    GestureDetector(
+                      onTap: () => _editRecord(record, index, records),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Text(DateFormat('dd.MM.yyyy').format(record.visitDate), style: TextStyle(color: Colors.blue.shade700)),
                       ),
-                      child: Text(DateFormat('dd.MM.yyyy').format(record.visitDate), style: TextStyle(color: Colors.blue.shade700)),
                     ),
                   ),
-                ),
-                DataCell(
-                  GestureDetector(
-                    onTap: () => _editRecord(record, index, records),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.teal.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.teal.shade200),
+                  DataCell(
+                    GestureDetector(
+                      onTap: () => _editRecord(record, index, records),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.teal.shade200),
+                        ),
+                        child: Text(record.pheLevel.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
                       ),
-                      child: Text(record.pheLevel.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
                     ),
                   ),
-                ),
-              ],
-            );
-          }).toList(),
+                  DataCell(
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: 'Sil',
+                      onPressed: () => _deleteRecord(record),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: () => _addNewRecord(),
+            icon: const Icon(Icons.add),
+            label: const Text('Ekle'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal.shade600,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
         ),
       ],
+    );
+  }
+
+  void _deleteRecord(PhenylalanineRecord record) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kaydı Sil'),
+        content: const Text('Bu kaydı silmek istediğinizden emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                final patientService = Provider.of<PatientService>(context, listen: false);
+                
+                await patientService.deletePheRecord(
+                  widget.patientRecord.patientName,
+                  record.patientId,
+                  record.visitDate,
+                );
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  setState(() {
+                    _loadData();
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Kayıt silindi'), backgroundColor: Colors.red),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Hata: $e'), backgroundColor: Colors.red),
+                );
+              }
+            },
+            child: const Text('Sil', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addNewRecord() {
+    final dateController = TextEditingController(text: DateFormat('dd.MM.yyyy').format(DateTime.now()));
+    final valueController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yeni Vizit Verisi Ekle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: dateController,
+              inputFormatters: [
+                _DateInputFormatter(),
+              ],
+              decoration: const InputDecoration(
+                labelText: 'Tarihi (gg.aa.yyyy)',
+                hintText: 'Geçmiş tarihleri de ekleyebilirsiniz',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: valueController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Kan Fenilalanin Düzeyi (mg/dL)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                if (dateController.text.isEmpty || valueController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Lütfen tüm alanları doldurunuz'), backgroundColor: Colors.orange),
+                  );
+                  return;
+                }
+
+                final newDate = DateFormat('dd.MM.yyyy').parse(dateController.text);
+                final newValue = double.parse(valueController.text.replaceAll(',', '.'));
+
+                final patientService = Provider.of<PatientService>(context, listen: false);
+                
+                final newRecord = PhenylalanineRecord(
+                  patientId: widget.patientRecord.patientName,
+                  patientName: widget.patientRecord.patientName,
+                  visitDate: newDate,
+                  pheLevel: newValue,
+                );
+                
+                await patientService.savePheRecord(widget.patientRecord.patientName, newRecord);
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  setState(() {
+                    _loadData();
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Kayıt eklendi'), backgroundColor: Colors.green),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Hata: $e'), backgroundColor: Colors.red),
+                );
+              }
+            },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
     );
   }
 

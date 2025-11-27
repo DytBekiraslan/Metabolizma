@@ -1,7 +1,6 @@
 // lib/viewmodels/metabolizma_viewmodel.dart
 import 'dart:async'; 
 // import 'dart:io'; // KALDIRILDI
-import 'dart:typed_data';
 import 'package:flutter/material.dart'; 
 import 'package:flutter/services.dart'; 
 import 'package:intl/intl.dart';
@@ -14,10 +13,9 @@ import 'dart:convert';
 import '../models/models.dart';
 import '../services/persentil_service_v2.dart'; 
 import 'package:fl_chart/fl_chart.dart'; 
-import 'dart:math' show min, max; 
+import 'dart:math' show min; 
 import 'package:collection/collection.dart'; 
 // GÜNCELLEME: open_filex'i 'as open_file' ön eki ile import ediyoruz
-import 'package:open_filex/open_filex.dart' as open_file;
 
 // --- HESAPLAMA FONKSİYONLARI (Global Kapsamda Tek Tanım) ---
 (double, String, String) calculateBMH_WHO(double weight, int ageInYears, String gender) { 
@@ -264,13 +262,13 @@ double calculateGrowthEnergyAddition(int ageInMonths, double reqFinalWeight) {
     enerji3: enerji3 > 0 ? enerji3 : 0.0, 
     bge: bgeValue, 
     proteinFormula: pFormula, 
-    faFormula: "FKÜ Tablosundan Aralık",
-    enerjiFormula: "FKÜ Tablosundan Aralık",
+    faFormula: "PKU Tablosundan Aralık",
+    enerjiFormula: "PKU Tablosundan Aralık",
     enerji2Formula: enerji2Formula, 
     enerji3Formula: enerji3Formula, 
     proteinRef: pRef, 
-    faRef: "FKÜ Tablosu referans aralığına bakınız. 1 yaş altı kg ile çarpılır.",
-    enerjiRef: "FKÜ Tablosu referans aralığına bakınız. 1 yaş altı kg ile çarpılır.",
+    faRef: "PKU Tablosu referans aralığına bakınız. 1 yaş altı kg ile çarpılır.",
+    enerjiRef: "PKU Tablosu referans aralığına bakınız. 1 yaş altı kg ile çarpılır.",
     enerji2Ref: enerji2Ref,
     enerji3Ref: enerji3Ref, 
     proteinConstraint: proteinConstraint,
@@ -382,8 +380,10 @@ class MetabolizmaViewModel extends ChangeNotifier {
   final TextEditingController energyReq2Controller = TextEditingController();
   final TextEditingController energyReq3Controller = TextEditingController(); 
   // YENİ DOKTOR ORDER ALANLARI
+final TextEditingController doctorEnergyController = TextEditingController(); // YENİ: Doktor Order Enerji
 final TextEditingController doctorProteinController = TextEditingController(); // YENİ: Doktor Order Protein
 final TextEditingController doctorPheController = TextEditingController();     // YENİ: Doktor Order Fenilalanin
+bool doctorEnergyCheckbox = false; // Doktor Enerji Hedefi Checkbox
 // YENİ DOKTOR ORDER ALANLARI SONU
   
   Map<EnergySource, bool> selectedEnergySources = { 
@@ -463,7 +463,9 @@ final TextEditingController visitDateController = TextEditingController(text: Da
   // YENİ TİROZİN ALANLARI
 final TextEditingController tyrosineLevelController = TextEditingController(); 
 DateTime? tyrosineVisitDate = DateTime.now();
-final TextEditingController tyrosineVisitDateController = TextEditingController(text: DateFormat('dd.MM.yyyy').format(DateTime.now()));
+final TextEditingController tyrosineVisitDateController = TextEditingController(
+    text: DateFormat('dd.MM.yyyy').format(DateTime.now())
+);
   
   // YENİ EKLENEN SNAPSHOT ALANLARI
   double _snapshotTotalEnergy = 0.0;
@@ -485,7 +487,6 @@ final TextEditingController tyrosineVisitDateController = TextEditingController(
   final NumberFormat _numberFormat = NumberFormat("0.00", "tr_TR");
   final NumberFormat _bmiFormat = NumberFormat("0.0", "tr_TR");
   final NumberFormat _reqFormat = NumberFormat("0.0", "tr_TR");
-  final NumberFormat _pheFormat = NumberFormat("0.00", "tr_TR");
   final NumberFormat _bmhEnerjiFormat = NumberFormat("0.00", "tr_TR");
   final NumberFormat _amountFormat = NumberFormat("0.##", "tr_TR");
   final ScrollController scrollController = ScrollController();
@@ -567,9 +568,10 @@ final TextEditingController tyrosineVisitDateController = TextEditingController(
   }
   
   void _addListenersForRow(int index) { 
-    if (index < 0 || index >= foodRows.length) return; 
+    if (index < 0 || index >= foodRows.length) return;
+    // Her seferinde listener ekle (gereksiz olsa da check yapmaktan daha güvenli)
     foodRows[index].amountController.addListener(_handleAmountChangeForRow); 
-    foodRows[index].nameController.addListener(_handleNameChangeForRow); 
+    foodRows[index].nameController.addListener(_handleNameChangeForRow);
   }
   
   void _initializeCalculations() { 
@@ -734,10 +736,9 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     final double manualCalcWeight = double.tryParse(calculationWeightController.text.replaceAll(',', '.')) ?? 0.0; 
     final double height = double.tryParse(heightController.text.replaceAll(',', '.')) ?? 0.0;
     
-    final (chronoYears, chronoMonthsTotal, chronoDays, chronoAgeInDouble) = _calculateAge(dateOfBirth, visitDate);
+    final (chronoYears, chronoMonthsTotal, chronoDays, _) = _calculateAge(dateOfBirth, visitDate);
     
     final int chronoAgeInYearsForBMH = chronoYears; 
-    final int chronoAgeInMonths = chronoMonthsTotal; 
     
     calculatedHeightAgeInMonths = -1; 
     whoHeightAgeInMonths = -1;
@@ -773,7 +774,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
         
         if (reqFinalWeight <= 0) {
            reqFinalWeight = currentWeight; 
-           weightCalculationSource = "Kendi Ağırlığı (Fallback)"; // Düzeltildi
+           weightCalculationSource = "Kendi Ağırlığı"; // Düzeltildi
         }
     } else if (selectedWeightSource == WeightSource.whoPercentile || selectedWeightSource == WeightSource.neyziPercentile) {
         final source = selectedWeightSource == WeightSource.whoPercentile ? PercentileSource.who : PercentileSource.neyzi;
@@ -792,8 +793,15 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
                 percentileWeightController.text = _amountFormat.format(percentileWeight);
                 weightCalculationSource = "${selectedPercentileValue!.toInt()}. Persentil (${source == PercentileSource.neyzi ? 'Neyzi' : 'WHO'})";
             } else {
-                reqFinalWeight = currentWeight; 
-                weightCalculationSource = "Kendi Ağırlığı (Fallback)"; // Düzeltildi
+                // WHO seçilmişse ve yaş > 10 ay (120 ay), Neyzi seçmeleri gerekiyor mesajını göster
+                if (selectedWeightSource == WeightSource.whoPercentile && ageForCalculationsInMonths > 120) {
+                    percentileWeightController.text = "Neyzi Persentilini Seçiniz";
+                    weightCalculationSource = "Neyzi Persentil Seçim Gerekli";
+                    reqFinalWeight = currentWeight; // Fallback olarak kendi ağırlığı
+                } else {
+                    reqFinalWeight = currentWeight; 
+                    weightCalculationSource = "Kendi Ağırlığı)"; // Düzeltildi
+                }
             }
         }
     } else if (selectedWeightSource == WeightSource.current) { // YENİ EKLENEN KONTROL
@@ -802,7 +810,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     } else {
         // Eğer hiçbir şey seçili değilse, varsayılan olarak kendi ağırlığına döner (Fallback)
         reqFinalWeight = currentWeight; 
-        weightCalculationSource = "Kendi Ağırlığı (Fallback)"; 
+        weightCalculationSource = "Kendi Ağırlığı"; 
     }
 
     double bmhValue = 0.0;
@@ -864,10 +872,10 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
        proteinReqTooltipString = "Eski katsayı ile hesaplanmıştır. | Kısıt Kontrolü: ${rawConstraint}";
        proteinReqController.text = "${_reqFormat.format(reqs.protein)} g (Kontrol: ${rawConstraint})";
        
-       enerjiReqCalculationString = "FKÜ Tablosu Aralık: ${reqs.enerjiRange} (Ağırlık Kaynağı: $weightCalculationSource)"; 
+       enerjiReqCalculationString = "PKU Tablosu Aralık: ${reqs.enerjiRange} (Ağırlık Kaynağı: $weightCalculationSource)"; 
        enerjiReqTooltipString = reqs.enerjiRef;
        
-       pheReqCalculationString = "FKÜ Tablosu Aralık: ${reqs.faRange} (Ağırlık Kaynağı: $weightCalculationSource)"; 
+       pheReqCalculationString = "PKU Tablosu Aralık: ${reqs.faRange} (Ağırlık Kaynağı: $weightCalculationSource)"; 
        pheReqTooltipString = reqs.faRef;
        
        proteinReqCalculationString = "${reqs.proteinFormula} = ${_reqFormat.format(reqs.protein)} g (Ağırlık Kaynağı: $weightCalculationSource)"; 
@@ -976,16 +984,17 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
       );
     }
     
-    // Load CSV-based percentiles asynchronously (fire-and-forget is OK here)
-    // The async method will call notifyListeners() when done
-    _loadCSVPercentilesAndNotify(notify: notify);
+    // AYRI THREAD'TE: CSV persentillerini async yükle (notifyListeners'i kendisi yapacak)
+    if (notify) {
+      _loadCSVPercentilesAndNotify(notify: true);
+    }
   }
 
   // CSV persentillerini async yükle ve hesapla
   Future<void> _loadCSVPercentilesAndNotify({bool notify = true}) async {
     final double currentWeight = double.tryParse(weightController.text.replaceAll(',', '.')) ?? 0.0;
     final double height = double.tryParse(heightController.text.replaceAll(',', '.')) ?? 0.0;
-    final (chronoYears, chronoMonthsTotal, chronoDays, chronoAgeInDouble) = _calculateAge(dateOfBirth, visitDate);
+    final (chronoYears, chronoMonthsTotal, chronoDays, _) = _calculateAge(dateOfBirth, visitDate);
     
     if (currentWeight <= 0 || height <= 0 || chronoMonthsTotal < 0) {
       if (notify) notifyListeners();
@@ -1037,7 +1046,6 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
       print('DEBUG: height = $height, chronoMonthsTotal = $chronoMonthsTotal');
       
       if (neyziHeightPercentile.contains("< P3")) {
-        print('DEBUG: Neyzi Height < P3, calculating height age');
         final calculatedAge = _persentilService.getHeightAgeInMonths(
           height: height,
           gender: selectedGender,
@@ -1124,6 +1132,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
         whoHeightAgeStatus: whoHeightAgeStatus,
       );
 
+      // SADECE BURADA notify et (async işlem bitince)
       if (notify) notifyListeners();
     } catch (e) {
       print('Error loading CSV percentiles: $e');
@@ -1137,13 +1146,13 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     final double height = double.tryParse(heightController.text.replaceAll(',', '.')) ?? 0.0;
     
     print('DEBUG: ensurePercentileDataLoaded çağrıldı - weight=$currentWeight, height=$height');
-    print('DEBUG: calculatedPercentiles ÖNCESI = ${calculatedPercentiles.neyziWeightPercentile}');
+    print('DEBUG: calculatedPercentiles.neyziWeightPercentile = ${calculatedPercentiles.neyziWeightPercentile}');
     
     if (currentWeight > 0 && height > 0) {
       await _loadCSVPercentilesAndNotify(notify: false);
     }
     
-    print('DEBUG: calculatedPercentiles SONRASI = ${calculatedPercentiles.neyziWeightPercentile}');
+    print('DEBUG: calculatedPercentiles.sonrası = ${calculatedPercentiles.neyziWeightPercentile}');
   }
 
   void handleDragStarted() { _isDragging = true; _currentScrollDirection = _ScrollDirection.none; _stopScrolling(); }
@@ -1256,7 +1265,6 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
   
   void toplamlariHesapla({
     bool notify = true,
-    // Opsiyonel parametreler, sadece kişisel veriler değiştiğinde (_performAndUpdatePersonalCalculations'dan) gelir.
     double? calculatedEnergy2, 
     double? calculatedEnergy3,
     double? calculatedProteinReq,
@@ -1275,32 +1283,28 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     
     // YENİ KONTROL: Öğün ataması aktif ise, yüzdelik hesaplaması için snapshot kullan.
     if (_isMealAssignmentActive) {
-        // Snapshot sadece ilk kez ayarlanır ve öğün ataması bitene kadar sabit kalır.
         if (_snapshotTotalEnergy == 0 && _snapshotTotalProtein == 0 && _snapshotTotalPhe == 0) {
-            // FoodRow'ların initial değerlerini kullanarak tam snapshottan al (Öğün planı başlamadan önceki hali).
             _snapshotTotalEnergy = foodRows.fold(0.0, (sum, row) => sum + row.initialEnergy);
             _snapshotTotalProtein = foodRows.fold(0.0, (sum, row) => sum + row.initialProtein);
             _snapshotTotalPhe = foodRows.fold(0.0, (sum, row) => sum + row.initialPhe);
         }
     } else {
-        // Öğün ataması aktif değilse (Normal besin girişi), snapshot'ı temizle.
         _snapshotTotalEnergy = 0.0;
         _snapshotTotalProtein = 0.0;
         _snapshotTotalPhe = 0.0;
     }
     
-    // Yüzdelik hesaplaması için kullanılacak nihai toplamlar:
+    // ✅ DÜZELTME: Doğru değişkenler kullanılıyor
     final double finalTotalEnergy = _isMealAssignmentActive ? _snapshotTotalEnergy : toplamEnerji;
     final double finalTotalProtein = _isMealAssignmentActive ? _snapshotTotalProtein : toplamProtein;
     final double finalTotalPhe = _isMealAssignmentActive ? _snapshotTotalPhe : toplamFenilalanin;
 
-
-    // Toplam Controller'ları GÜNCEL (azalan) miktarlarla doldurmaya devam et (Kullanıcının görmesi için)
+    // Toplam Controller'ları güncelle
     totalEnergyController.text = _numberFormat.format(toplamEnerji); 
     totalProteinController.text = _numberFormat.format(toplamProtein); 
     totalPheController.text = _numberFormat.format(toplamFenilalanin); 
     
-    // Yüzde hesaplaması için kilitlenmiş/mevcut toplamları kullan
+    // ✅ DÜZELTME: Doğru parametrelerle çağırıldı
     _calculateAllPercentages(
       finalTotalEnergy, 
       finalTotalProtein, 
@@ -1377,7 +1381,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     /// 3. Fenilalanin Gereksinimini Belirle (Aralık)
     double pheLower = 0.0;
     double pheUpper = 0.0;
-    String pheTargetSource = "FKÜ Tablosu";
+    String pheTargetSource = "PKU Tablosu";
 
     // YENİ KONTROL: DOKTOR ORDER'INI KULLAN
     final double doctorPhe = double.tryParse(doctorPheController.text.replaceAll(',', '.')) ?? 0.0;
@@ -1393,7 +1397,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
         if (targetPheRangeText.contains('-')) {
             final parts = targetPheRangeText.replaceAll(RegExp(r'[^\d,-]'), '').split('-');
             if (parts.length >= 2) {
-                pheLower = double.tryParse(parts[0].replaceAll(',', '.')) ?? 0.0;
+                               pheLower = double.tryParse(parts[0].replaceAll(',', '.')) ?? 0.0;
                 pheUpper = double.tryParse(parts[1].replaceAll(',', '.')) ?? 0.0;
             }
         }
@@ -1940,7 +1944,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     return _buildChartData(
       sourceData: _persentilService.neyziWeightPercentileData,
       percentileLabels: percentileLabels,
-      getPercentiles: (d) => (d as PercentileData).neyziPercentiles,
+      getPercentiles: (d) => d.neyziPercentiles,
       userWeight: weight,
       ageInMonths: ageInMonths,
       maxY: 80,
@@ -1953,17 +1957,16 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
       sourceData: _persentilService.whoPercentileData,
       percentileLabels: percentileLabels,
       getPercentiles: (d) { 
-        final dAsPercentileData = d as PercentileData; 
         return [
-          dAsPercentileData.percentile3,
-          dAsPercentileData.percentile5,
-          dAsPercentileData.percentile10,
-          dAsPercentileData.percentile25,
-          dAsPercentileData.percentile50,
-          dAsPercentileData.percentile75,
-          dAsPercentileData.percentile90,
-          dAsPercentileData.percentile95,
-          dAsPercentileData.percentile97,
+          d.percentile3,
+          d.percentile5,
+          d.percentile10,
+          d.percentile25,
+          d.percentile50,
+          d.percentile75,
+          d.percentile90,
+          d.percentile95,
+          d.percentile97,
         ];
       },
       userWeight: weight,
@@ -2125,9 +2128,6 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
       isPregnant ? "Gebe" : null
     ].where((e) => e != null).join(", ");
     
-    final isHeightAgeUsed = calculatedHeightAgeInMonths != -1;
-    final heightAgeText = isHeightAgeUsed ? " (Boy Yaşı olarak hesaplandı)" : "";
-
     final faf = fafController.text.isNotEmpty ? fafController.text : "-";
 
     pw.Widget _buildPdfInfoRow(String label, String value, pw.TextStyle style) {
@@ -2241,11 +2241,11 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
                       children: [
                         pw.Text("Günlük Gereksinimler (Referans)", style: p.copyWith(fontWeight: pw.FontWeight.bold)),
                         pw.SizedBox(height: 5),
-                        _buildPdfReqRow("Enerji (FKÜ Ref)", energyReqController.text, "", boldP), 
+                        _buildPdfReqRow("Enerji (PKU Ref)", energyReqController.text, "", boldP), 
                         _buildPdfReqRow("Enerji (Pratik)", energyReq2Controller.text, "kcal", boldP),
                         _buildPdfReqRow("Enerji (BMH*FAF+BGE)", energyReq3Controller.text, "kcal", boldP),
                         _buildPdfReqRow("Protein (Eski Ref)", proteinReqController.text, "g", boldP), 
-                        _buildPdfReqRow("Fenilalanin (FKÜ Ref)", pheReqController.text, "", boldP), 
+                        _buildPdfReqRow("Fenilalanin (PKU Ref)", pheReqController.text, "", boldP), 
                       ],
                     ),
                   ),
@@ -2423,7 +2423,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
           ext: 'pdf',
           mimeType: MimeType.pdf,
         );
-        return path != null ? "PDF dosyası başarıyla kaydedildi/indirildi: $path" : "PDF kaydetme/indirme işlemi iptal edildi veya başarısız oldu.";
+        return "PDF dosyası başarıyla kaydedildi/indirildi: $path";
     } catch (e) {
         return "Hata: Manuel PDF kaydetme/indirme başarısız oldu. (${e.toString()})";
     }
@@ -2682,7 +2682,6 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
       case MealType.ikindi: return "İkindi"; 
       case MealType.aksam: return "Akşam"; 
       case MealType.gece: return "Gece"; 
-      default: return ""; 
     } 
   }
 }
