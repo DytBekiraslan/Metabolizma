@@ -267,6 +267,9 @@ class _GrowthAssessmentScreenState extends State<GrowthAssessmentScreen> {
     } else if (title.contains('Boy Persentili')) {
       dataType = 'height';
       source = title.contains('Neyzi') ? 'neyzi' : 'who';
+    } else if (title.contains('Boy Yaşı Durumu')) {
+      dataType = 'height';
+      source = title.contains('Neyzi') ? 'neyzi' : 'who';
     } else if (title.contains('BKİ Persentili')) {
       dataType = 'bmi';
       source = title.contains('Neyzi') ? 'neyzi' : 'who';
