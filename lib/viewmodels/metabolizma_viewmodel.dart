@@ -728,8 +728,29 @@ final TextEditingController tyrosineVisitDateController = TextEditingController(
       selectedPercentileValue = newValue;
       if (selectedWeightSource == WeightSource.whoPercentile || selectedWeightSource == WeightSource.neyziPercentile) {
           _performAndUpdatePersonalCalculations();
+          // Persentil ağırlığını anında hesapla ve göster
+          _updatePercentileWeightDisplay();
       }
       notifyListeners();
+    }
+  }
+  
+  void _updatePercentileWeightDisplay() {
+    final (_, chronoMonthsTotal, _, _) = _calculateAge(dateOfBirth, visitDate);
+    if (selectedPercentileValue != null && chronoMonthsTotal >= 0 && selectedGender.isNotEmpty) {
+      final source = selectedWeightSource == WeightSource.whoPercentile ? PercentileSource.who : PercentileSource.neyzi;
+      final double percentileWeight = _persentilService.getPercentileWeight(
+        source: source,
+        ageInMonths: chronoMonthsTotal,
+        gender: selectedGender,
+        percentileValue: selectedPercentileValue!,
+      );
+      
+      if (percentileWeight > 0) {
+        percentileWeightController.text = _amountFormat.format(percentileWeight);
+      } else {
+        percentileWeightController.text = "-";
+      }
     }
   }
   
