@@ -638,6 +638,7 @@ final TextEditingController tyrosineVisitDateController = TextEditingController(
       selectedEnergySources[source] = false;
     }
     _resetPdfSnapshot();
+    notifyListeners(); // UI'ı güncelle
     // Yüzdelerin, seçilen enerji kaynağına göre güncellenmesi için çağrılır
     toplamlariHesapla(); 
   
