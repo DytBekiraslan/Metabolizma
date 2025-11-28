@@ -387,6 +387,7 @@ bool doctorEnergyCheckbox = false; // Doktor Enerji Hedefi Checkbox
 // YENİ DOKTOR ORDER ALANLARI SONU
   
   Map<EnergySource, bool> selectedEnergySources = { 
+    EnergySource.doctor: false,
     EnergySource.fku: true, 
     EnergySource.practical: false, 
     EnergySource.bmhFafBge: false,
@@ -1333,7 +1334,10 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     final double energy3 = calculatedEnergy3 ?? double.tryParse(energyReq3Controller.text.replaceAll(',', '.')) ?? 0.0;
     final double energy2 = calculatedEnergy2 ?? double.tryParse(energyReq2Controller.text.replaceAll(',', '.')) ?? 0.0;
     
-    if (selectedEnergySources[EnergySource.fku] == true) {
+    if (selectedEnergySources[EnergySource.doctor] == true) {
+      // Doktor Hedefi seçildi
+      requiredEnergy = double.tryParse(doctorEnergyController.text.replaceAll(',', '.')) ?? 0.0;
+    } else if (selectedEnergySources[EnergySource.fku] == true) {
       // FKÜ'den gelen aralığın orta veya minimum değerini hedef almalıyız.
       // Basitlik için sadece Enerji (BMH*FAF+BGE) değerini hedef alıyorum
       // çünkü bu, hesaplanan tekil bir değerdir.
@@ -1370,7 +1374,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     
     if (doctorProtein > 0) {
         requiredProtein = doctorProtein;
-        proteinTargetSource = "DOKTOR ORDER";
+        proteinTargetSource = "";
     } else if (calculatedProteinReq != null) {
       requiredProtein = calculatedProteinReq;
     } else {
@@ -1390,7 +1394,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
         // Eğer doktor tek bir FA değeri girdiyse, bu değeri hem alt hem üst hedef olarak al.
         pheLower = doctorPhe;
         pheUpper = doctorPhe;
-        pheTargetSource = "DOKTOR ORDER";
+        pheTargetSource = "";
     } else {
         final String targetPheRangeText = pheRangeText ?? pheReqController.text;
 
@@ -1409,7 +1413,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
         String status;
         
         if (totalEnergy < requiredEnergy * 0.95) { // %5 altı sapma kabul edilebilir
-            color = Colors.orange; // Sarı (Altında)
+            color = const Color.fromARGB(255, 238, 255, 0); // Sarı (Altında)
             status = "Enerji Gereksinimi Altında";
         } else if (totalEnergy > requiredEnergy * 1.05) { // %5 üstü sapma kabul edilebilir
             color = Colors.red; // Kırmızı (Üstünde)
@@ -1440,14 +1444,14 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
         String status;
         
         if (totalProtein < proteinMin) {
-            color = Colors.orange; // Sarı (Çok Altında)
+           color = const Color.fromARGB(255, 238, 255, 0); // Sarı (Çok Altında)
             status = "Protein Gereksinimi Altında (<-${tolerance.toInt()}g)";
         } else if (totalProtein > proteinMax) {
             color = Colors.red; // Kırmızı (Çok Üstünde)
             status = "Protein Gereksinimini Aşıyor (>+${tolerance.toInt()}g)";
         } else {
             color = Colors.green; // Yeşil (Aralıkta)
-            status = "Protein Hedefi (${tolerance.toInt()}g) Karşılandı";
+            status = "Protein Hedefi +/-(${tolerance.toInt()}g) Karşılandı";
         }
         
        proteinPercent = CalculatedPercentage(
@@ -1469,7 +1473,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
         String status;
 
         if (totalPhe < pheLower) {
-            color = Colors.orange; // Sarı (Altında)
+           color = const Color.fromARGB(255, 179, 190, 25); // Sarı (Altında)
             status = "FA Gereksinim Aralığı Altında";
         } else if (totalPhe > pheUpper) {
             color = Colors.red; // Kırmızı (Üstünde)
@@ -2602,6 +2606,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     
     final jsonSelectedEnergySources = data['selectedEnergySources'] as Map<String, dynamic>? ?? {};
     selectedEnergySources = {
+      EnergySource.doctor: jsonSelectedEnergySources['doctor'] ?? false,
       EnergySource.fku: jsonSelectedEnergySources['fku'] ?? true,
       EnergySource.practical: jsonSelectedEnergySources['practical'] ?? false,
       EnergySource.bmhFafBge: jsonSelectedEnergySources['bmhFafBge'] ?? false,

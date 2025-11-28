@@ -790,8 +790,9 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                         child: Row(
                           children: [
                             Checkbox(
-                              value: viewModel.doctorEnergyCheckbox,
+                              value: viewModel.selectedEnergySources[EnergySource.doctor] ?? false,
                               onChanged: (value) {
+                                viewModel.setSelectedEnergySource(EnergySource.doctor, value);
                                 setState(() {
                                   viewModel.doctorEnergyCheckbox = value ?? false;
                                 });
@@ -929,7 +930,13 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                       // Yüzdelik Bar
                       Padding(
                         padding: const EdgeInsets.only(right: 8.0),
-                        child: _buildPercentageBar(context, viewModel.energyPercent, unit: 'kcal'),
+                        child: _buildPercentageBar(
+                          context, 
+                          viewModel.energyPercent, 
+                          unit: 'kcal',
+                          title: _getSelectedEnergySourceLabel(viewModel),
+                          targetValue: _getSelectedEnergySourceTargetValue(viewModel),
+                        ),
                       ),
                     ],
                   ),
@@ -947,7 +954,7 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                       // Yüzdelik Bar
                       Padding(
                         padding: const EdgeInsets.only(right: 8.0),
-                        child: _buildPercentageBar(context, viewModel.proteinPercent, unit: 'g'),
+                        child: _buildPercentageBar(context, viewModel.proteinPercent, unit: 'g', title: _getProteinLabel(viewModel)),
                       ),
                     ],
                   ),
@@ -965,7 +972,7 @@ class _MetabolizmaScreenState extends State<MetabolizmaScreen> {
                       // Yüzdelik Bar
                       Padding(
                         padding: const EdgeInsets.only(right: 8.0),
-                        child: _buildPercentageBar(context, viewModel.phePercent, unit: 'mg'),
+                        child: _buildPercentageBar(context, viewModel.phePercent, unit: 'mg', title: _getPheLabel(viewModel)),
                       ),
                     ],
                   ),
@@ -2660,15 +2667,18 @@ Widget _buildVisitDatePickerField(BuildContext context, MetabolizmaViewModel vie
     );
   }
   // YENİ WIDGET: Yüzdelik Barı oluşturur (En alta eklenmeli)
-Widget _buildPercentageBar(BuildContext context, CalculatedPercentage data, {required String unit}) {
+Widget _buildPercentageBar(BuildContext context, CalculatedPercentage data, {required String unit, String? title, double? targetValue}) {
     final statusStyle = data.color == Colors.red ? const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11)
-        : data.color == Colors.orange ? const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 11)
+        : data.color == const Color.fromARGB(255, 179, 190, 25)? const TextStyle(color: const Color.fromARGB(255, 179, 190, 25), fontWeight: FontWeight.bold, fontSize: 11)
         : const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11);
         
     final format = NumberFormat("0.##", "tr_TR");
 
     String targetText;
-    if (data.upperLimit > 0 && data.upperLimit != data.lowerLimit) {
+    if (targetValue != null && targetValue > 0) {
+        // Seçilen enerji kaynağının hedefi (Enerji için kullanılan parametre)
+        targetText = "Hedef: ${format.format(targetValue)} $unit";
+    } else if (data.upperLimit > 0 && data.upperLimit != data.lowerLimit) {
         // Aralık gösterimi (Protein ve FA)
         targetText = "Hedef Aralığı: ${format.format(data.lowerLimit)} - ${format.format(data.upperLimit)} $unit";
     } else if (data.targetValue > 0) {
@@ -2681,6 +2691,15 @@ Widget _buildPercentageBar(BuildContext context, CalculatedPercentage data, {req
    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+            // BAŞLIK YAZISI (Seçilen enerji kaynağı)
+            if (title != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87),
+                ),
+              ),
             // DURUM VE YÜZDELİK ORANIN OLDUĞU SATIR
             Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3162,6 +3181,52 @@ Widget _buildPercentageBar(BuildContext context, CalculatedPercentage data, {req
       },
     );
   }
+
+  // Helper: Seçilen enerji kaynağının etiketini döndür
+  String _getSelectedEnergySourceLabel(MetabolizmaViewModel viewModel) {
+    if (viewModel.selectedEnergySources[EnergySource.doctor] == true) {
+      return '% Enerji (Doktor/Dyt. Hedefi)';
+    } else if (viewModel.selectedEnergySources[EnergySource.practical] == true) {
+      return '% Enerji (Pratik)';
+    } else if (viewModel.selectedEnergySources[EnergySource.bmhFafBge] == true) {
+      return '% Enerji (BMH*FAF+BGE)';
+    } else {
+      return '% Enerji (PKU Referans Tablosu)';
+    }
+  }
+
+  // Helper: Seçilen enerji kaynağının hedef değerini döndür
+  double _getSelectedEnergySourceTargetValue(MetabolizmaViewModel viewModel) {
+    if (viewModel.selectedEnergySources[EnergySource.doctor] == true) {
+      return double.tryParse(viewModel.doctorEnergyController.text.replaceAll(',', '.')) ?? 0.0;
+    } else if (viewModel.selectedEnergySources[EnergySource.practical] == true) {
+      return double.tryParse(viewModel.energyReq2Controller.text.replaceAll(',', '.')) ?? 0.0;
+    } else if (viewModel.selectedEnergySources[EnergySource.bmhFafBge] == true) {
+      return double.tryParse(viewModel.energyReq3Controller.text.replaceAll(',', '.')) ?? 0.0;
+    } else {
+      return double.tryParse(viewModel.energyReqController.text.replaceAll(',', '.')) ?? 0.0;
+    }
+  }
+
+  // Helper: Protein etiketini döndür (Doktor hedefi girilmişse vs hesaplanan)
+  String _getProteinLabel(MetabolizmaViewModel viewModel) {
+    final doctorProteinText = viewModel.doctorProteinController.text.trim();
+    if (doctorProteinText.isNotEmpty && double.tryParse(doctorProteinText.replaceAll(',', '.')) != null) {
+      return '% Protein (Doktor/Dyt. Hedefi)';
+    } else {
+      return '% Protein (Hesaplanan)';
+    }
+  }
+
+  // Helper: Fenilalanin etiketini döndür (Doktor hedefi girilmişse vs hesaplanan)
+  String _getPheLabel(MetabolizmaViewModel viewModel) {
+    final doctorPheText = viewModel.doctorPheController.text.trim();
+    if (doctorPheText.isNotEmpty && double.tryParse(doctorPheText.replaceAll(',', '.')) != null) {
+      return '% Fenilalanin (Doktor/Dyt. Hedefi)';
+    } else {
+      return '% Fenilalanin (Hesaplanan)';
+    }
+  }
 }
 
 // YENİ SINIF: Otomatik tarih formatlama için
@@ -3207,14 +3272,7 @@ class _DateTextFormatter extends TextInputFormatter {
     if (newText.length > 10) {
         newText = newText.substring(0, 10);
     }
-    
-    // Yeni imleç pozisyonunu metin uzunluğuyla sınırla
-    newCursorPosition = min(newCursorPosition, newText.length);
-    
-    // İmleç, sadece rakamların olduğu yere girerken noktayı atlamalı.
-    if (newText.length >= 3 && newCursorPosition == 2) newCursorPosition++;
-    if (newText.length >= 6 && newCursorPosition == 5) newCursorPosition++;
-    
+
     return TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(offset: newCursorPosition),

@@ -370,6 +370,7 @@ enum WeightSource {
 }
 
 enum EnergySource {
+  doctor,
   fku,
   practical,
   bmhFafBge, 
