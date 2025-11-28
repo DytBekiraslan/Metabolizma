@@ -1636,28 +1636,45 @@ Widget _buildVisitDatePickerField(BuildContext context, MetabolizmaViewModel vie
           );
         },
       ),
-      // Yaş notu - Sol üst köşe
+      // Yaş notu - Sol üst köşe (Responsive)
       if (ageNote != null)
         Positioned(
           top: 0,
           left: 0,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(
-              color: borderColor.withOpacity(0.15),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                bottomRight: Radius.circular(8),
-              ),
-            ),
-            child: Text(
-              ageNote,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                color: borderColor.withOpacity(0.9),
-              ),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Ekran genişliğine göre font boyutunu ayarla
+              final screenWidth = MediaQuery.of(context).size.width;
+              final double fontSize = screenWidth < 600 
+                  ? 7.5  // Mobil için daha küçük
+                  : screenWidth < 900 
+                      ? 8.5  // Tablet için orta
+                      : 9.5; // Desktop için normal
+              
+              return Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth < 600 ? 4 : 6,
+                  vertical: screenWidth < 600 ? 2 : 3,
+                ),
+                decoration: BoxDecoration(
+                  color: borderColor.withOpacity(0.15),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    bottomRight: Radius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  ageNote!,
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w600,
+                    color: borderColor.withOpacity(0.9),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            },
           ),
         ),
       ],
