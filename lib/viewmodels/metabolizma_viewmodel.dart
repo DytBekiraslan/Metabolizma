@@ -638,7 +638,6 @@ final TextEditingController tyrosineVisitDateController = TextEditingController(
       selectedEnergySources[source] = false;
     }
     _resetPdfSnapshot();
-    notifyListeners(); // UI'ı güncelle
     // Yüzdelerin, seçilen enerji kaynağına göre güncellenmesi için çağrılır
     toplamlariHesapla(); 
   
@@ -726,30 +725,9 @@ final TextEditingController tyrosineVisitDateController = TextEditingController(
   void setPercentileValue(double? newValue) {
     if (newValue != null) {
       selectedPercentileValue = newValue;
+      notifyListeners(); // Önce UI'ı güncelle
       if (selectedWeightSource == WeightSource.whoPercentile || selectedWeightSource == WeightSource.neyziPercentile) {
           _performAndUpdatePersonalCalculations();
-          // Persentil ağırlığını anında hesapla ve göster
-          _updatePercentileWeightDisplay();
-      }
-      notifyListeners();
-    }
-  }
-  
-  void _updatePercentileWeightDisplay() {
-    final (_, chronoMonthsTotal, _, _) = _calculateAge(dateOfBirth, visitDate);
-    if (selectedPercentileValue != null && chronoMonthsTotal >= 0 && selectedGender.isNotEmpty) {
-      final source = selectedWeightSource == WeightSource.whoPercentile ? PercentileSource.who : PercentileSource.neyzi;
-      final double percentileWeight = _persentilService.getPercentileWeight(
-        source: source,
-        ageInMonths: chronoMonthsTotal,
-        gender: selectedGender,
-        percentileValue: selectedPercentileValue!,
-      );
-      
-      if (percentileWeight > 0) {
-        percentileWeightController.text = _amountFormat.format(percentileWeight);
-      } else {
-        percentileWeightController.text = "-";
       }
     }
   }
@@ -1028,26 +1006,7 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
     whoHeightAgeInMonths = -1;
 
     try {
-      // Neyzi Weight Percentile - Use synchronous method
-      String neyziWeightPercentile = _persentilService.getWeightPercentileRange(
-        ageInMonths: chronoMonthsTotal,
-        gender: selectedGender,
-        weight: currentWeight,
-      );
-      print('DEBUG: neyziWeightPercentile = $neyziWeightPercentile');
-
-      // WHO Weight Percentile - Use synchronous method
-      // WHO ağırlık: 10 yaşından (120 aydan) büyükse hesaplama yok
-      String whoWeightPercentile = '-';
-      if (chronoMonthsTotal <= 120) {
-        whoWeightPercentile = _persentilService.getWhoWeightPercentileRange(
-          ageInMonths: chronoMonthsTotal,
-          gender: selectedGender,
-          weight: currentWeight,
-        );
-      }
-      print('DEBUG: whoWeightPercentile = $whoWeightPercentile (age: $chronoMonthsTotal months)');
-
+      // Boy persentili hesaplama - Her zaman kronolojik yaşa göre (çünkü boy yaşı buradan türetilebilir)
       // Neyzi Height Percentile - Use synchronous method
       String neyziHeightPercentile = _persentilService.getHeightPercentileRange(
         ageInMonths: chronoMonthsTotal,
@@ -1119,26 +1078,55 @@ void _performAndUpdatePersonalCalculations({bool notify = true}) {
       
       heightAgeInMonthsDisplayController.text = neyziHeightAgeStatus;
 
-      // Neyzi BMI Percentile - Use synchronous method
+      // AĞIRLIK VE BKİ PERSENTİLLERİ İÇİN YAŞ BELİRLEME:
+      // Boy yaşı hesaplanmışsa (Neyzi < P3), ağırlık ve BKİ için boy yaşını kullan
+      // Boy yaşı hesaplanmamışsa, kronolojik yaşı kullan
+      final int ageForWeightAndBmi = calculatedHeightAgeInMonths != -1 
+          ? calculatedHeightAgeInMonths 
+          : chronoMonthsTotal;
+          
+      print('DEBUG: ageForWeightAndBmi = $ageForWeightAndBmi (calculatedHeightAge: $calculatedHeightAgeInMonths, chronoAge: $chronoMonthsTotal)');
+      
+      // Neyzi Weight Percentile - Boy yaşına göre (varsa)
+      String neyziWeightPercentile = _persentilService.getWeightPercentileRange(
+        ageInMonths: ageForWeightAndBmi,
+        gender: selectedGender,
+        weight: currentWeight,
+      );
+      print('DEBUG: neyziWeightPercentile = $neyziWeightPercentile');
+
+      // WHO Weight Percentile - Boy yaşına göre (varsa)
+      // WHO ağırlık: 10 yaşından (120 aydan) büyükse hesaplama yok
+      String whoWeightPercentile = '-';
+      if (ageForWeightAndBmi <= 120) {
+        whoWeightPercentile = _persentilService.getWhoWeightPercentileRange(
+          ageInMonths: ageForWeightAndBmi,
+          gender: selectedGender,
+          weight: currentWeight,
+        );
+      }
+      print('DEBUG: whoWeightPercentile = $whoWeightPercentile (age: $ageForWeightAndBmi months)');
+
+      // Neyzi BMI Percentile - Boy yaşına göre (varsa)
       double bmi = (currentWeight / ((height / 100) * (height / 100)));
       String neyziBmiPercentile = _persentilService.getBMIPercentileRange(
-        ageInMonths: chronoMonthsTotal,
+        ageInMonths: ageForWeightAndBmi,
         gender: selectedGender,
         bmi: bmi,
       );
       print('DEBUG: neyziBmiPercentile = $neyziBmiPercentile, bmi = $bmi');
 
-      // WHO BMI Percentile - Use synchronous method
+      // WHO BMI Percentile - Boy yaşına göre (varsa)
       // WHO BMI: 2 yaşından (24 aydan) küçükse hesaplama yok
       String whoBmiPercentile = '-';
-      if (chronoMonthsTotal >= 24) {
+      if (ageForWeightAndBmi >= 24) {
         whoBmiPercentile = _persentilService.getWhoBmiPercentileRange(
-          ageInMonths: chronoMonthsTotal,
+          ageInMonths: ageForWeightAndBmi,
           gender: selectedGender,
           bmi: bmi,
         );
       }
-      print('DEBUG: whoBmiPercentile = $whoBmiPercentile (age: $chronoMonthsTotal months)');
+      print('DEBUG: whoBmiPercentile = $whoBmiPercentile (age: $ageForWeightAndBmi months)');
 
       // Update CalculatedPercentiles with CSV-based values
       calculatedPercentiles = CalculatedPercentiles(

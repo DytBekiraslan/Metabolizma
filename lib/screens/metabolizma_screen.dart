@@ -1340,6 +1340,63 @@ Widget _buildVisitDatePickerField(BuildContext context, MetabolizmaViewModel vie
       chartType = label.contains('NEYZİ') ? 'neyzi_height' : 'who_height';
     }
     
+    // YAŞ BİLGİSİ NOTU OLUŞTUR
+    String? ageNote;
+    if (viewModel != null) {
+      // Ağırlık ve BKİ persentilleri için yaş notu
+      if (label.contains('Ağırlık Persentili') || label.contains('BKİ Persentili')) {
+        if (viewModel.calculatedHeightAgeInMonths != -1) {
+          final ageInYears = viewModel.calculatedHeightAgeInMonths < 12 
+              ? "0" 
+              : (viewModel.calculatedHeightAgeInMonths / 12.0).toStringAsFixed(1);
+          final displayAge = viewModel.calculatedHeightAgeInMonths < 12 
+              ? "${viewModel.calculatedHeightAgeInMonths} Ay"
+              : "$ageInYears Yıl (${viewModel.calculatedHeightAgeInMonths} Ay)";
+          ageNote = "Boy Yaşına Göre ($displayAge)";
+        } else if (viewModel.dateOfBirth != null) {
+          final now = viewModel.visitDate ?? DateTime.now();
+          final birthDate = viewModel.dateOfBirth!;
+          int years = now.year - birthDate.year;
+          int remainingMonths = now.month - birthDate.month;
+          if (remainingMonths < 0) {
+            years--;
+            remainingMonths += 12;
+          }
+          if (now.day < birthDate.day && remainingMonths > 0) {
+            remainingMonths--;
+          }
+          final totalMonths = (years * 12) + remainingMonths;
+          final ageInYears = totalMonths < 12 ? "0" : (totalMonths / 12.0).toStringAsFixed(1);
+          final displayAge = totalMonths < 12 
+              ? "$totalMonths Ay"
+              : "$ageInYears Yıl ($totalMonths Ay)";
+          ageNote = "Kronolojik Yaşa Göre ($displayAge)";
+        }
+      }
+      // Boy persentili için her zaman kronolojik yaş
+      else if (label.contains('Boy Persentili')) {
+        if (viewModel.dateOfBirth != null) {
+          final now = viewModel.visitDate ?? DateTime.now();
+          final birthDate = viewModel.dateOfBirth!;
+          int years = now.year - birthDate.year;
+          int remainingMonths = now.month - birthDate.month;
+          if (remainingMonths < 0) {
+            years--;
+            remainingMonths += 12;
+          }
+          if (now.day < birthDate.day && remainingMonths > 0) {
+            remainingMonths--;
+          }
+          final totalMonths = (years * 12) + remainingMonths;
+          final ageInYears = totalMonths < 12 ? "0" : (totalMonths / 12.0).toStringAsFixed(1);
+          final displayAge = totalMonths < 12 
+              ? "$totalMonths Ay"
+              : "$ageInYears Yıl ($totalMonths Ay)";
+          ageNote = "Kronolojik Yaşa Göre ($displayAge)";
+        }
+      }
+    }
+    
     // WHO BKİ için özel mesaj (2 yaştan küçükler için)
     if (value.trim() == "-" && label.contains('BKİ Persentili') && label.contains('WHO')) {
       return Container(
@@ -1421,8 +1478,11 @@ Widget _buildVisitDatePickerField(BuildContext context, MetabolizmaViewModel vie
         border: Border.all(color: borderColor, width: 2),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
+      child: Stack(
+        children: [
+          // Ana içerik
+          LayoutBuilder(
+            builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 260;
           final labelText = Text(
             label,
@@ -1576,6 +1636,32 @@ Widget _buildVisitDatePickerField(BuildContext context, MetabolizmaViewModel vie
           );
         },
       ),
+      // Yaş notu - Sol üst köşe
+      if (ageNote != null)
+        Positioned(
+          top: 0,
+          left: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: borderColor.withOpacity(0.15),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                bottomRight: Radius.circular(8),
+              ),
+            ),
+            child: Text(
+              ageNote,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: borderColor.withOpacity(0.9),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
     );
   }
 

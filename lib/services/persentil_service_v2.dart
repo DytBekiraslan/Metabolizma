@@ -122,26 +122,30 @@ class PersentilService {
       dataset = _getNeyziWeightData(gender);
     }
 
-    // Yaş için veriyi bul
-    final data = dataset.firstWhere(
-      (d) => d.ageInMonths == ageInMonths,
-      orElse: () => const PercentileData(
-        ageInMonths: -1,
-        gender: '',
-        percentile3: 0,
-        percentile10: 0,
-        percentile25: 0,
-        percentile50: 0,
-        percentile75: 0,
-        percentile90: 0,
-        percentile97: 0,
-      ),
-    );
-
-    if (data.ageInMonths == -1) return 0.0;
+    // Yaş için veriyi bul (tam eşleşme yoksa en yakını)
+    PercentileData? data = dataset.firstWhereOrNull((d) => d.ageInMonths == ageInMonths);
+    data ??= _getClosestPercentileData(dataset, ageInMonths);
+    if (data == null) return 0.0;
 
     // Persentil değerine göre ağırlığı döndür
     return data.getWeightByPercentile(percentileValue);
+  }
+
+  PercentileData? _getClosestPercentileData(List<PercentileData> dataset, int ageInMonths) {
+    if (dataset.isEmpty) return null;
+
+    PercentileData? closest;
+    int minDiff = 9999;
+
+    for (final entry in dataset) {
+      final diff = (entry.ageInMonths - ageInMonths).abs();
+      if (closest == null || diff < minDiff || (diff == minDiff && entry.ageInMonths > closest.ageInMonths)) {
+        closest = entry;
+        minDiff = diff;
+      }
+    }
+
+    return closest;
   }
 
   Future<String> getPercentileRangeFromCSV({
